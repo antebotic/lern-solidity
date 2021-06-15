@@ -14,10 +14,4 @@ contract VariableTypes {
 
   uint8 public unsigned; // 0
   int8 public signed; // 0
-
-  uint8 public withinBounds = 255;
-
-  function causeOverflow() public {
-    withinBounds += 1;
-  }
 }
