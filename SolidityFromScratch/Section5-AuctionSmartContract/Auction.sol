@@ -3,39 +3,49 @@
 pragma solidity ^0.8.4;
 
 /*
-  - decentralized Auction following common auction rules
-  - there is an owner, start and end date
-  - the owner can cancel the action, also finalize it before the time is up
-  - place bids by calling a function placeBids
-  - the user can send an amount and define it maximum they are willing to pay,
-      contract increments up to that amount over the highest bid
-  - after the auction ends, the owner gets the highest bid, and everybot else
-      withrdraws their own amount;
- */
+- decentralized Auction following common auction rules
+- there is an owner, start and end date
+- the owner can cancel the action, also finalize it before the time is up
+- place bids by calling a function placeBids
+- the user can send an amount and define it maximum they are willing to pay,
+    contract increments up to that amount over the highest bid
+- after the auction ends, the owner gets the highest bid, and everybot else
+    withrdraws their own amount;
+*/
 
- contract Auction {
-   address payable public owner;
-   uint public startBlock;
-   uint public endBlock;
-   string public ipfsHash;
+contract AuctionCreator {
+  Auction[] public allAuctions;
 
-   enum State{Running, Ended, Canceled}
-   State public auctionState;
+  function createAuction() public { 
+    Auction newAuction = new Auction(msg.sender);
+    allAuctions.push(newAuction);
+  }
 
-   uint public highestBindingBid;
-   address payable public highestBidder;
+}
 
-   mapping(address => uint) public bids;
-   uint bidIncrement;
+contract Auction {
+  address payable public owner;
+  uint public startBlock;
+  uint public endBlock;
+  string public ipfsHash;
 
-   constructor(){
-    owner = payable(msg.sender);
+  enum State{Started, Running, Ended, Canceled}
+  State public auctionState;
+
+  uint public highestBindingBid;
+  address payable public highestBidder;
+
+  mapping(address => uint) public bids;
+  uint bidIncrement;
+
+  constructor(address auctionOwner){
+    owner = payable(auctionOwner);
     auctionState = State.Running;
     startBlock = block.number;      // it's safer to use block height instead of timestamp, miners can influence timestamps
     endBlock = startBlock + 40320;  // end the auction one week from now
     ipfsHash = "";
     bidIncrement = 100;
-   }
+  }
 
   modifier onlyOwner(){
     require(msg.sender == owner, "invalid user");
@@ -65,12 +75,18 @@ pragma solidity ^0.8.4;
     }
   }
 
+  function cancelAuction() public onlyOwner {
+    auctionState = State.Canceled;
+  }
+
   function placeBid() public payable notOwner afterStart beforeEnd {
     require(auctionState == State.Running, "auction inactive");
     require(msg.value >= 100, "below minimum bid");
 
     uint currentBid = bids[msg.sender] + msg.value;
     require(currentBid > highestBindingBid, "bid too low");
+    
+    bids[msg.sender] = currentBid;
 
     if(currentBid <= bids[highestBidder]){
       highestBindingBid = min(currentBid + bidIncrement, bids[highestBidder]);
@@ -78,42 +94,35 @@ pragma solidity ^0.8.4;
       highestBindingBid = min(currentBid, bids[highestBidder] + bidIncrement);
       highestBidder = payable(msg.sender);
     }
-
   }
-    // To be continued
-   //EOF
- }
+  // Withdrawal pattern, only send ETH to a user when he explicitly requests it
+  // Helps avoiding re-entrance attacks
 
+  function finalizeAuction() public {
+    require(auctionState == State.Canceled || block.number > endBlock, "can't be finalized yet");
+    require(msg.sender == owner || bids[msg.sender] > 0); // only the owner, or a bidder can finalize the auction
 
+    address payable recipient;
+    uint value;
 
-/*
-  Function modifiers:
-    - used to modify the behaviour of a function.
-    - test a condition before calling a function, executing only if modifier evaluates to true
-    - using them avoids redundant-code and possible errors
-    - contract properties, and are inherited
-    - return nothing, only yse require();
-    - defined using modifier keyword
- */
+    if(auctionState == State.Canceled) {
+      recipient = payable(msg.sender);
+      value = bids[msg.sender];
+    } else {
+      if(msg.sender == owner){
+        recipient = owner;
+        value = highestBindingBid;
+      } else { //auction winner
+        if(msg.sender == highestBidder){
+          recipient = highestBidder;
+          value = bids[highestBidder] - highestBindingBid;
+        } else { //auction participant, non winner
+          recipient = payable(msg.sender);
+          value = bids[msg.sender];
+        }
+      }
+    }
 
- contract ModifierExample {
-  uint public price;
-  address public owner;
-
-  constructor(){
-    owner = msg.sender;
-  }
-
-  modifier onlyOwner(){
-    require(msg.sender == owner);
-    _; //execute the rest of the function that has this modifier
-  }
-
-  function changeOwner(address _owner) public onlyOwner {
-    owner = _owner;
-  }
-
-  function changePrice(uint _price) public onlyOwner {
-    price = _price;
+    recipient.transfer(value);
   }
 }
