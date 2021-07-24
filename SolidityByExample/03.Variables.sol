@@ -19,7 +19,7 @@ contract Variables {
   uint public num = 123;
 
   function doSomething() public view {
-    //this is a variable local to the encapsulating function, it is not stored onchain
+    //this is a variable local to the encapsulating function, it is not stored onchain 5
     uint i = 256;
 
     //example global variables
