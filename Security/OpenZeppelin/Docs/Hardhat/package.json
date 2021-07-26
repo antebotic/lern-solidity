@@ -1,0 +1,21 @@
+{
+  "name": "Hardhat",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "compile": "npx hardhat compile",
+    "network": "npx hardhat node",
+    "test": "npx hardhat test"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.2",
+    "@openzeppelin/contracts": "^4.2.0",
+    "chai": "^4.3.4",
+    "ethers": "^5.4.2",
+    "hardhat": "^2.5.0"
+  }
+}
